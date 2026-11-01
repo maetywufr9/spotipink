@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpotiPink - Cute Music Player</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Fredoka & Quicksand -->
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pinkbg: '#fde8f0',
+            pinkcard: '#fff0f5',
+            pinksidebar: '#fbcfe8',
+            pinkaccent: '#ff66b2',
+            pinkdark: '#e0247d',
+            pinkhover: '#ff3399',
+            pinktext: '#501229',
+          },
+          fontFamily: {
+            fredoka: ['Fredoka', 'sans-serif'],
+            quicksand: ['Quicksand', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Quicksand', sans-serif;
+      background-color: #fde8f0;
+      color: #501229;
+      overflow-x: hidden;
+    }
+
+    /* Floating Glitter / Sparkle Background */
+    .sparkle {
+      position: absolute;
+      pointer-events: none;
+      animation: floatUp linear infinite;
+      opacity: 0.7;
+    }
+
+    @keyframes floatUp {
+      0% {
+        transform: translateY(100vh) scale(0.5) rotate(0deg);
+        opacity: 0;
+      }
+      20% { opacity: 0.8; }
+      80% { opacity: 0.8; }
+      100% {
+        transform: translateY(-10vh) scale(1.2) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    /* Vinyl Spinning Animation */
+    .vinyl-spin {
+      animation: spin 12s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .paused-animation {
+      animation-play-state: paused !important;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #fbcfe8;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ff66b2;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #e0247d;
+    }
+
+    /* Custom Input Range Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #fbcfe8;
+      border-radius: 10px;
+      height: 6px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background: #e0247d;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(224, 36, 125, 0.4);
+      transition: transform 0.1s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+  </style>
+</head>
+<body class="h-screen flex flex-col justify-between select-none relative overflow-hidden">
+
+  <!-- Floating Sparkles Container -->
+  <div id="sparkle-container" class="fixed inset-0 pointer-events-none z-0"></div>
+
+  <!-- Main App Shell -->
+  <div class="flex-1 flex flex-col md:flex-row p-3 md:p-5 gap-4 overflow-hidden z-10 max-w-7xl w-full mx-auto">
+    
+    <!-- Left Sidebar: Playlist & Controls -->
+    <aside class="w-full md:w-80 bg-white/70 backdrop-blur-md rounded-3xl p-4 flex flex-col shadow-lg border border-pink-200">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3 mb-4 px-2">
+        <div class="w-10 h-10 rounded-2xl bg-pinkdark text-white flex items-center justify-center text-xl shadow-md">
+          <i class="fa-solid fa-heart"></i>
+        </div>
+        <h1 class="font-fredoka text-2xl font-bold text-pinkdark tracking-wide">SpotiPink ✨</h1>
+      </div>
+
+      <!-- Action Buttons (Folder & File Picker) -->
+      <div class="space-y-2 mb-3">
+        <label class="w-full bg-pinkaccent hover:bg-pinkhover text-white py-2.5 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all transform active:scale-95 text-sm">
+          <i class="fa-solid fa-folder-open"></i> Pick Music Folder
+          <input type="file" id="folder-input" webkitdirectory directory multiple accept="audio/*" class="hidden">
+        </label>
+        
+        <label class="w-full bg-pink-100 hover:bg-pink-200 text-pinkdark py-2 px-4 rounded-2xl font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all text-xs border border-pink-300">
+          <i class="fa-solid fa-file-audio"></i> Add Single Track(s)
+          <input type="file" id="file-input" multiple accept="audio/*" class="hidden">
+        </label>
+      </div>
+
+      <!-- Hands-Free Voice Control Toggle Button -->
+      <button id="voice-btn" class="w-full mb-3 bg-pink-100 hover:bg-pink-200 text-pinkdark py-2 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all text-xs border border-pink-300 shadow-sm">
+        <i class="fa-solid fa-microphone text-pinkaccent"></i> <span>Enable Voice Commands</span>
+      </button>
+
+      <!-- Playlist Track Count Header -->
+      <div class="flex justify-between items-center px-2 py-1 text-xs font-bold text-pinkdark border-b border-pink-200 pb-2 mb-2">
+        <span>YOUR LIBRARY 🎀</span>
+        <span id="track-count-badge" class="bg-pink-200 text-pinkdark px-2 py-0.5 rounded-full">0 songs</span>
+      </div>
+
+      <!-- Playlist Items Container -->
+      <div class="flex-1 overflow-y-auto pr-1 space-y-1" id="playlist-container">
+        <!-- Empty State -->
+        <div id="empty-state" class="text-center py-10 px-4 text-pink-400">
+          <i class="fa-solid fa-compact-disc text-4xl mb-2 animate-bounce"></i>
+          <p class="text-xs font-medium">No songs loaded yet!</p>
+          <p class="text-[10px] mt-1 text-pink-300">Pick a folder to save your music library ✨</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Music Player Dashboard -->
+    <main class="flex-1 bg-white/80 backdrop-blur-lg rounded-3xl p-6 flex flex-col justify-between items-center text-center shadow-lg border border-pink-200 relative overflow-hidden">
+      
+      <!-- Top Bar Badges -->
+      <div class="w-full flex justify-between items-center text-xs font-semibold text-pinkdark">
+        <span id="playing-mode-badge" class="bg-pink-100 border border-pink-300 px-3 py-1 rounded-full flex items-center gap-1.5">
+          <i class="fa-solid fa-shuffle text-pinkaccent"></i> Shuffle Mode Active
+        </span>
+        <button id="clear-playlist-btn" class="hover:text-pinkhover transition-colors hidden text-pink-400">
+          <i class="fa-solid fa-trash-can"></i> Clear Saved Library
+        </button>
+      </div>
+
+      <!-- Center Player View (Vinyl Artwork & Track Details) -->
+      <div class="my-auto py-4 flex flex-col items-center max-w-md w-full">
+        
+        <!-- Vinyl Record Container -->
+        <div class="relative group my-4">
+          <div class="absolute -inset-2 bg-gradient-to-r from-pink-300 to-pinkdark rounded-full blur-lg opacity-40 group-hover:opacity-70 transition duration-500"></div>
+          
+          <!-- Vinyl Disc -->
+          <div id="vinyl-disc" class="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-neutral-900 border-4 border-pink-200 shadow-2xl flex items-center justify-center vinyl-spin paused-animation">
+            <div class="absolute inset-2 rounded-full border border-neutral-700/50"></div>
+            <div class="absolute inset-6 rounded-full border border-neutral-700/50"></div>
+            <div class="absolute inset-10 rounded-full border border-neutral-700/50"></div>
+            <div class="absolute inset-14 rounded-full border border-neutral-700/50"></div>
+
+            <!-- Cute Album Art Center Sticker -->
+            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-pinkaccent border-4 border-white flex flex-col items-center justify-center text-white text-3xl shadow-inner relative z-10 overflow-hidden">
+              <span id="album-emoji">💖</span>
+            </div>
+            
+            <div class="absolute w-4 h-4 bg-white rounded-full z-20 border-2 border-neutral-300"></div>
+          </div>
+        </div>
+
+        <!-- Song Metadata -->
+        <div class="mt-4 space-y-1 w-full px-4">
+          <h2 id="current-title" class="font-fredoka text-xl sm:text-2xl font-bold text-pinktext truncate">
+            No Song Selected 🎧
+          </h2>
+          <p id="current-artist" class="text-xs sm:text-sm text-pink-400 font-semibold truncate">
+            Add songs to your library to start jamming!
+          </p>
+        </div>
+      </div>
+
+      <!-- Controls & Progress Section -->
+      <div class="w-full max-w-xl space-y-3">
+        
+        <!-- Progress Bar & Timers -->
+        <div class="space-y-1">
+          <input type="range" id="progress-bar" value="0" min="0" max="100" class="w-full cursor-pointer">
+          <div class="flex justify-between text-[11px] font-bold text-pinkdark px-1">
+            <span id="current-time">0:00</span>
+            <span id="total-duration">0:00</span>
+          </div>
+        </div>
+
+        <!-- Primary Playback Buttons -->
+        <div class="flex items-center justify-center gap-4 sm:gap-6">
+          <button id="shuffle-btn" class="w-9 h-9 rounded-full bg-pinkdark text-white hover:bg-pinkhover flex items-center justify-center transition active:scale-90" title="Toggle Shuffle">
+            <i class="fa-solid fa-shuffle text-xs"></i>
+          </button>
+
+          <button id="prev-btn" class="w-10 h-10 rounded-full bg-pink-100 text-pinkdark hover:bg-pink-200 flex items-center justify-center text-sm transition active:scale-90" title="Previous Song">
+            <i class="fa-solid fa-backward-step"></i>
+          </button>
+
+          <button id="play-btn" class="w-14 h-14 rounded-full bg-pinkdark hover:bg-pinkhover text-white flex items-center justify-center text-xl shadow-lg transition transform hover:scale-105 active:scale-95" title="Play/Pause">
+            <i class="fa-solid fa-play ml-0.5"></i>
+          </button>
+
+          <button id="next-btn" class="w-10 h-10 rounded-full bg-pink-100 text-pinkdark hover:bg-pink-200 flex items-center justify-center text-sm transition active:scale-90" title="Next Song">
+            <i class="fa-solid fa-forward-step"></i>
+          </button>
+
+          <button id="loop-btn" class="w-9 h-9 rounded-full bg-pink-100 text-pink-400 hover:bg-pink-200 flex items-center justify-center transition active:scale-90" title="Toggle Loop">
+            <i class="fa-solid fa-repeat text-xs"></i>
+          </button>
+        </div>
+
+        <!-- Volume Slider Control -->
+        <div class="flex items-center justify-center gap-2 max-w-xs mx-auto pt-2">
+          <i id="volume-icon" class="fa-solid fa-volume-high text-xs text-pinkdark w-4"></i>
+          <input type="range" id="volume-bar" value="80" min="0" max="100" class="w-28 cursor-pointer">
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Audio Element (Hidden Engine) -->
+  <audio id="audio-engine"></audio>
+
+  <!-- JavaScript App Logic -->
+  <script>
+    // --- IndexedDB Browser Storage Engine ---
+    const DB_NAME = "SpotiPinkDB";
+    const STORE_NAME = "songs";
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { autoIncrement: true });
+          }
+        };
+      });
+    }
+
+    async function saveSongsToDB(files) {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        
+        files.forEach(file => {
+          store.add({ name: file.name, blob: file, type: file.type });
+        });
+        return tx.complete;
+      } catch (err) {
+        console.error("Error saving songs to DB:", err);
+      }
+    }
+
+    async function loadSavedSongsFromDB() {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          const savedItems = request.result;
+          if (savedItems && savedItems.length > 0) {
+            playlist = savedItems.map(item => {
+              const fileObj = new File([item.blob], item.name, { type: item.type || item.blob.type });
+              return {
+                file: fileObj,
+                name: cleanFileName(item.name),
+                url: URL.createObjectURL(fileObj)
+              };
+            });
+            updatePlaylistUI();
+            currentTitle.textContent = "Saved Library Loaded ✨";
+            currentArtist.textContent = "Tap play or select a song to start listening!";
+          }
+        };
+      } catch (err) {
+        console.log("No saved songs found in browser storage.");
+      }
+    }
+
+    async function clearDatabase() {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+      } catch (err) {
+        console.error("Failed to clear database:", err);
+      }
+    }
+
+    // --- State Variables ---
+    let playlist = [];
+    let currentIndex = -1;
+    let isShuffle = true;
+    let isLooping = false;
+
+    const cuteEmojis = ['💖', '🎀', '🌸', '✨', '🍓', '🍰', '🧁', '🦄', '🎧', '🍭'];
+
+    // DOM Elements
+    const audioEngine = document.getElementById('audio-engine');
+    const folderInput = document.getElementById('folder-input');
+    const fileInput = document.getElementById('file-input');
+    const playlistContainer = document.getElementById('playlist-container');
+    const emptyState = document.getElementById('empty-state');
+    const trackCountBadge = document.getElementById('track-count-badge');
+    const currentTitle = document.getElementById('current-title');
+    const currentArtist = document.getElementById('current-artist');
+    const playBtn = document.getElementById('play-btn');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const shuffleBtn = document.getElementById('shuffle-btn');
+    const loopBtn = document.getElementById('loop-btn');
+    const progressBar = document.getElementById('progress-bar');
+    const volumeBar = document.getElementById('volume-bar');
+    const currentTimeText = document.getElementById('current-time');
+    const totalDurationText = document.getElementById('total-duration');
+    const vinylDisc = document.getElementById('vinyl-disc');
+    const albumEmoji = document.getElementById('album-emoji');
+    const clearPlaylistBtn = document.getElementById('clear-playlist-btn');
+    const playingModeBadge = document.getElementById('playing-mode-badge');
+    const volumeIcon = document.getElementById('volume-icon');
+    const voiceBtn = document.getElementById('voice-btn');
+
+    // Floating Background Sparkles
+    function createSparkles() {
+      const container = document.getElementById('sparkle-container');
+      const sparkleSymbols = ['✨', '🌸', '💗', '⭐', '🎀'];
+      
+      for (let i = 0; i < 20; i++) {
+        const sparkle = document.createElement('div');
+        sparkle.className = 'sparkle';
+        sparkle.textContent = sparkleSymbols[Math.floor(Math.random() * sparkleSymbols.length)];
+        sparkle.style.left = `${Math.random() * 100}vw`;
+        sparkle.style.animationDuration = `${6 + Math.random() * 8}s`;
+        sparkle.style.animationDelay = `${Math.random() * 5}s`;
+        sparkle.style.fontSize = `${12 + Math.random() * 16}px`;
+        container.appendChild(sparkle);
+      }
+    }
+    createSparkles();
+
+    // Add Audio Files & Save to DB
+    async function handleFilesAdded(files) {
+      const validFiles = Array.from(files).filter(file => 
+        file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|m4a|ogg|flac|aac)$/i)
+      );
+
+      if (validFiles.length === 0) return;
+
+      validFiles.forEach(file => {
+        playlist.push({
+          file: file,
+          name: cleanFileName(file.name),
+          url: URL.createObjectURL(file)
+        });
+      });
+
+      await saveSongsToDB(validFiles);
+      updatePlaylistUI();
+
+      if (currentIndex === -1 && playlist.length > 0) {
+        playTrack(0);
+      }
+    }
+
+    folderInput.addEventListener('change', (e) => handleFilesAdded(e.target.files));
+    fileInput.addEventListener('change', (e) => handleFilesAdded(e.target.files));
+
+    function cleanFileName(filename) {
+      return filename.replace(/\.[^/.]+$/, "").replace(/^[0-9\s._-]+/, '');
+    }
+
+    // Sidebar Playlist Render
+    function updatePlaylistUI() {
+      if (playlist.length === 0) {
+        emptyState.style.display = 'block';
+        clearPlaylistBtn.classList.add('hidden');
+        trackCountBadge.textContent = '0 songs';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      clearPlaylistBtn.classList.remove('hidden');
+      trackCountBadge.textContent = `${playlist.length} song${playlist.length > 1 ? 's' : ''}`;
+
+      playlistContainer.innerHTML = '';
+
+      playlist.forEach((track, index) => {
+        const trackCard = document.createElement('div');
+        const isActive = index === currentIndex;
+
+        trackCard.className = `p-2.5 rounded-2xl flex items-center justify-between gap-2 cursor-pointer transition-all ${
+          isActive 
+            ? 'bg-pinkaccent text-white shadow-md font-semibold translate-x-1' 
+            : 'bg-white/60 hover:bg-pink-100 text-pinktext'
+        }`;
+
+        trackCard.innerHTML = `
+          <div class="flex items-center gap-2.5 overflow-hidden">
+            <div class="w-7 h-7 rounded-xl flex items-center justify-center text-xs ${isActive ? 'bg-white/20 text-white' : 'bg-pink-200 text-pinkdark'}">
+              ${isActive && !audioEngine.paused ? '<i class="fa-solid fa-volume-high animate-pulse"></i>' : index + 1}
+            </div>
+            <div class="truncate text-xs">
+              <p class="truncate font-bold">${escapeHtml(track.name)}</p>
+            </div>
+          </div>
+          <i class="fa-solid ${isActive ? 'fa-heart text-white' : 'fa-play text-pink-300'} text-xs px-1"></i>
+        `;
+
+        trackCard.addEventListener('click', () => playTrack(index));
+        playlistContainer.appendChild(trackCard);
+      });
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Play Specific Track Index
+    function playTrack(index) {
+      if (index < 0 || index >= playlist.length) return;
+
+      currentIndex = index;
+      const track = playlist[currentIndex];
+
+      audioEngine.src = track.url;
+      currentTitle.textContent = track.name;
+      currentArtist.textContent = "Local Saved Track";
+      albumEmoji.textContent = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
+
+      audioEngine.play();
+      updatePlayButtonUI(true);
+      updatePlaylistUI();
+    }
+
+    // Playback Controls
+    function playNextTrack() {
+      if (playlist.length === 0) return;
+
+      if (isShuffle && playlist.length > 1) {
+        let randomIndex;
+        do {
+          randomIndex = Math.floor(Math.random() * playlist.length);
+        } while (randomIndex === currentIndex);
+        playTrack(randomIndex);
+      } else {
+        const nextIndex = (currentIndex + 1) % playlist.length;
+        playTrack(nextIndex);
+      }
+    }
+
+    function playPrevTrack() {
+      if (playlist.length === 0) return;
+
+      if (audioEngine.currentTime > 3) {
+        audioEngine.currentTime = 0;
+      } else {
+        const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+        playTrack(prevIndex);
+      }
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (playlist.length === 0) return;
+
+      if (audioEngine.paused) {
+        if (currentIndex === -1) {
+          playTrack(0);
+        } else {
+          audioEngine.play();
+          updatePlayButtonUI(true);
+        }
+      } else {
+        audioEngine.pause();
+        updatePlayButtonUI(false);
+      }
+    });
+
+    nextBtn.addEventListener('click', playNextTrack);
+    prevBtn.addEventListener('click', playPrevTrack);
+
+    function updatePlayButtonUI(isPlaying) {
+      if (isPlaying) {
+        playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        vinylDisc.classList.remove('paused-animation');
+      } else {
+        playBtn.innerHTML = '<i class="fa-solid fa-play ml-0.5"></i>';
+        vinylDisc.classList.add('paused-animation');
+      }
+    }
+
+    // Shuffle & Loop Toggles
+    shuffleBtn.addEventListener('click', () => {
+      isShuffle = !isShuffle;
+      shuffleBtn.classList.toggle('bg-pinkdark', isShuffle);
+      shuffleBtn.classList.toggle('text-white', isShuffle);
+      shuffleBtn.classList.toggle('bg-pink-100', !isShuffle);
+      shuffleBtn.classList.toggle('text-pinkdark', !isShuffle);
+
+      playingModeBadge.innerHTML = isShuffle 
+        ? '<i class="fa-solid fa-shuffle text-pinkaccent"></i> Shuffle Mode Active' 
+        : '<i class="fa-solid fa-list-ol text-pinkaccent"></i> Sequential Mode Active';
+    });
+
+    loopBtn.addEventListener('click', () => {
+      isLooping = !isLooping;
+      audioEngine.loop = isLooping;
+      loopBtn.classList.toggle('bg-pinkdark', isLooping);
+      loopBtn.classList.toggle('text-white', isLooping);
+      loopBtn.classList.toggle('bg-pink-100', !isLooping);
+      loopBtn.classList.toggle('text-pink-400', !isLooping);
+    });
+
+    audioEngine.addEventListener('ended', () => {
+      if (!isLooping) {
+        playNextTrack();
+      }
+    });
+
+    // Progress Bar Updates
+    audioEngine.addEventListener('timeupdate', () => {
+      if (!audioEngine.duration) return;
+      const percent = (audioEngine.currentTime / audioEngine.duration) * 100;
+      progressBar.value = percent;
+      currentTimeText.textContent = formatTime(audioEngine.currentTime);
+      totalDurationText.textContent = formatTime(audioEngine.duration);
+    });
+
+    progressBar.addEventListener('input', (e) => {
+      if (!audioEngine.duration) return;
+      const targetTime = (e.target.value / 100) * audioEngine.duration;
+      audioEngine.currentTime = targetTime;
+    });
+
+    // Volume Control
+    volumeBar.addEventListener('input', (e) => {
+      const vol = e.target.value / 100;
+      audioEngine.volume = vol;
+
+      if (vol === 0) {
+        volumeIcon.className = 'fa-solid fa-volume-xmark text-xs text-pinkdark w-4';
+      } else if (vol < 0.5) {
+        volumeIcon.className = 'fa-solid fa-volume-low text-xs text-pinkdark w-4';
+      } else {
+        volumeIcon.className = 'fa-solid fa-volume-high text-xs text-pinkdark w-4';
+      }
+    });
+
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return "0:00";
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    // Clear Playlist
+    clearPlaylistBtn.addEventListener('click', async () => {
+      playlist = [];
+      currentIndex = -1;
+      audioEngine.pause();
+      audioEngine.src = '';
+      currentTitle.textContent = "No Song Selected 🎧";
+      currentArtist.textContent = "Choose songs from your device to start jamming!";
+      updatePlayButtonUI(false);
+      updatePlaylistUI();
+      await clearDatabase();
+    });
+
+    // --- Voice Command Controls (Hands-Free Driving) ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.lang = 'en-US';
+
+      recognition.onend = () => {
+        // Automatically restart if recognition turns off while driving
+        if (voiceBtn.dataset.active === "true") {
+          recognition.start();
+        }
+      };
+
+      recognition.onresult = (event) => {
+        const lastResultIndex = event.results.length - 1;
+        const spokenText = event.results[lastResultIndex][0].transcript.toLowerCase().trim();
+        
+        console.log("Voice Command Detected:", spokenText);
+
+        if (spokenText.includes("next") || spokenText.includes("skip")) {
+          playNextTrack();
+        } else if (spokenText.includes("back") || spokenText.includes("previous")) {
+          playPrevTrack();
+        } else if (spokenText.includes("pause") || spokenText.includes("stop")) {
+          audioEngine.pause();
+          updatePlayButtonUI(false);
+        } else if (spokenText.includes("play") || spokenText.includes("start")) {
+          if (playlist.length > 0) {
+            audioEngine.play();
+            updatePlayButtonUI(true);
+          }
+        }
+      };
+
+      voiceBtn.addEventListener('click', () => {
+        if (voiceBtn.dataset.active === "true") {
+          recognition.stop();
+          voiceBtn.dataset.active = "false";
+          voiceBtn.innerHTML = '<i class="fa-solid fa-microphone text-pinkaccent"></i> <span>Enable Voice Commands</span>';
+          voiceBtn.classList.remove('bg-green-100', 'text-green-700', 'border-green-300');
+          voiceBtn.classList.add('bg-pink-100', 'text-pinkdark', 'border-pink-300');
+        } else {
+          recognition.start();
+          voiceBtn.dataset.active = "true";
+          voiceBtn.innerHTML = '<i class="fa-solid fa-microphone-lines animate-pulse text-green-600"></i> <span>Voice Active ("Next", "Pause", "Play")</span>';
+          voiceBtn.classList.remove('bg-pink-100', 'text-pinkdark', 'border-pink-300');
+          voiceBtn.classList.add('bg-green-100', 'text-green-700', 'border-green-300');
+        }
+      });
+    } else {
+      voiceBtn.style.display = 'none'; // Hide if browser lacks speech API
+    }
+
+    // Load saved songs from database when app opens
+    window.addEventListener('DOMContentLoaded', () => {
+      loadSavedSongsFromDB();
+    });
+  </script>
+</body>
+</html>
