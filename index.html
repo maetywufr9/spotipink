@@ -118,6 +118,15 @@
 </head>
 <body class="h-screen flex flex-col justify-between select-none relative overflow-hidden">
 
+    <!-- Updated body: allows scrolling on small mobile screens -->
+<body class="min-h-screen md:h-screen flex flex-col justify-between select-none relative overflow-y-auto md:overflow-hidden">
+
+  <!-- Floating Sparkles Container -->
+  <div id="sparkle-container" class="fixed inset-0 pointer-events-none z-0"></div>
+
+  <!-- Updated Main App Shell: scrollable on mobile, structured on desktop -->
+  <div class="flex-1 flex flex-col md:flex-row p-3 md:p-5 gap-4 overflow-y-auto md:overflow-hidden z-10 max-w-7xl w-full mx-auto">
+    
   <!-- Floating Sparkles Container -->
   <div id="sparkle-container" class="fixed inset-0 pointer-events-none z-0"></div>
 
