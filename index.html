@@ -40,7 +40,6 @@
       font-family: 'Quicksand', sans-serif;
       background-color: #fde8f0;
       color: #501229;
-      overflow-x: hidden;
     }
 
     /* Floating Glitter / Sparkle Background */
@@ -116,22 +115,13 @@
     }
   </style>
 </head>
-<body class="h-screen flex flex-col justify-between select-none relative overflow-hidden">
-
-    <!-- Updated body: allows scrolling on small mobile screens -->
 <body class="min-h-screen md:h-screen flex flex-col justify-between select-none relative overflow-y-auto md:overflow-hidden">
 
   <!-- Floating Sparkles Container -->
   <div id="sparkle-container" class="fixed inset-0 pointer-events-none z-0"></div>
 
-  <!-- Updated Main App Shell: scrollable on mobile, structured on desktop -->
-  <div class="flex-1 flex flex-col md:flex-row p-3 md:p-5 gap-4 overflow-y-auto md:overflow-hidden z-10 max-w-7xl w-full mx-auto">
-    
-  <!-- Floating Sparkles Container -->
-  <div id="sparkle-container" class="fixed inset-0 pointer-events-none z-0"></div>
-
   <!-- Main App Shell -->
-  <div class="flex-1 flex flex-col md:flex-row p-3 md:p-5 gap-4 overflow-hidden z-10 max-w-7xl w-full mx-auto">
+  <div class="flex-1 flex flex-col md:flex-row p-3 md:p-5 gap-4 overflow-y-auto md:overflow-hidden z-10 max-w-7xl w-full mx-auto">
     
     <!-- Left Sidebar: Playlist & Controls -->
     <aside class="w-full md:w-80 bg-white/70 backdrop-blur-md rounded-3xl p-4 flex flex-col shadow-lg border border-pink-200">
@@ -174,7 +164,7 @@
       </div>
 
       <!-- Playlist Items Container -->
-      <div class="flex-1 overflow-y-auto pr-1 space-y-1" id="playlist-container">
+      <div class="flex-1 overflow-y-auto pr-1 space-y-1 max-h-60 md:max-h-none" id="playlist-container">
         <!-- Empty State -->
         <div id="empty-state" class="text-center py-10 px-4 text-pink-400">
           <i class="fa-solid fa-compact-disc text-4xl mb-2 animate-bounce"></i>
