@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Fonts: Fredoka & Quicksand -->
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Microsoft Authentication Library (MSAL.js) -->
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
 
   <script>
     tailwind.config = {
@@ -133,10 +135,15 @@
         <h1 class="font-fredoka text-2xl font-bold text-pinkdark tracking-wide">SpotiPink ✨</h1>
       </div>
 
-      <!-- Action Buttons (Folder & File Picker) -->
+      <!-- Action Buttons (OneDrive, Folder & File Pickers) -->
       <div class="space-y-2 mb-3">
+        <!-- OneDrive Sync Button -->
+        <button id="onedrive-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all text-sm shadow-md active:scale-95">
+          <i class="fa-solid fa-cloud"></i> Sync OneDrive Music
+        </button>
+
         <label class="w-full bg-pinkaccent hover:bg-pinkhover text-white py-2.5 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all transform active:scale-95 text-sm">
-          <i class="fa-solid fa-folder-open"></i> Pick Music Folder
+          <i class="fa-solid fa-folder-open"></i> Pick Local Folder
           <input type="file" id="folder-input" webkitdirectory directory multiple accept="audio/*" class="hidden">
         </label>
         
@@ -163,7 +170,7 @@
         <div id="empty-state" class="text-center py-10 px-4 text-pink-400">
           <i class="fa-solid fa-compact-disc text-4xl mb-2 animate-bounce"></i>
           <p class="text-xs font-medium">No songs loaded yet!</p>
-          <p class="text-[10px] mt-1 text-pink-300">Pick a folder to save your music library ✨</p>
+          <p class="text-[10px] mt-1 text-pink-300">Sync OneDrive or pick local songs to jam ✨</p>
         </div>
       </div>
     </aside>
@@ -262,10 +269,99 @@
   </div>
 
   <!-- Audio Element (Hidden Engine) -->
-  <audio id="audio-engine"></audio>
+  <audio id="audio-engine" crossorigin="anonymous"></audio>
 
   <!-- JavaScript App Logic -->
   <script>
+    // --- Azure / OneDrive Settings ---
+    const AZURE_CLIENT_ID = "825f3658-0e7a-4822-a678-55ac2fc6a5dc"; // 👈 PASTE YOUR CLIENT ID HERE
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+
+    const msalConfig = {
+      auth: {
+        clientId: AZURE_CLIENT_ID,
+        authority: "https://login.microsoftonline.com/common",
+        redirectUri: REDIRECT_URI,
+      },
+      cache: {
+        cacheLocation: "sessionStorage",
+        storeAuthStateInCookie: false,
+      }
+    };
+
+    let msalInstance = null;
+
+    // Initialize MSAL Client
+    async function initMSAL() {
+      if (AZURE_CLIENT_ID !== "YOUR_AZURE_CLIENT_ID_HERE" && window.msal) {
+        msalInstance = new msal.PublicClientApplication(msalConfig);
+        await msalInstance.initialize();
+      }
+    }
+
+    // Connect & Sync OneDrive Audio Files
+    document.getElementById('onedrive-btn').addEventListener('click', async () => {
+      if (!msalInstance) {
+        alert("Please replace 'YOUR_AZURE_CLIENT_ID_HERE' with your Azure Application Client ID in the script!");
+        return;
+      }
+
+      try {
+        const loginResponse = await msalInstance.loginPopup({
+          scopes: ["Files.Read", "User.Read"]
+        });
+
+        const accessToken = loginResponse.accessToken;
+        document.getElementById('onedrive-btn').innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Syncing OneDrive...';
+
+        await fetchOneDriveAudioFiles(accessToken);
+      } catch (err) {
+        console.error("OneDrive connection failed:", err);
+        alert("Failed to connect to OneDrive. Check console for details.");
+      }
+    });
+
+    async function fetchOneDriveAudioFiles(accessToken) {
+      try {
+        const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/children", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const data = await response.json();
+
+        // Filter MP3, M4A, WAV audio files
+        const audioFiles = data.value.filter(item => 
+          item.file && (item.name.endsWith('.mp3') || item.name.endsWith('.m4a') || item.name.endsWith('.wav'))
+        );
+
+        if (audioFiles.length === 0) {
+          alert("No MP3/audio files found in your OneDrive root folder!");
+          document.getElementById('onedrive-btn').innerHTML = '<i class="fa-solid fa-cloud"></i> Sync OneDrive Music';
+          return;
+        }
+
+        const cloudTracks = audioFiles.map(item => ({
+          name: cleanFileName(item.name),
+          artist: "OneDrive Cloud Track ☁️",
+          url: item['@microsoft.graph.downloadUrl'],
+          file: null
+        }));
+
+        playlist.push(...cloudTracks);
+        updatePlaylistUI();
+
+        if (currentIndex === -1 && playlist.length > 0) {
+          playTrack(0);
+        }
+
+        document.getElementById('onedrive-btn').innerHTML = '<i class="fa-solid fa-circle-check"></i> OneDrive Synced ✨';
+        document.getElementById('onedrive-btn').classList.replace('bg-blue-500', 'bg-emerald-500');
+
+      } catch (err) {
+        console.error("Error fetching OneDrive files:", err);
+      }
+    }
+
     // --- IndexedDB Browser Storage Engine ---
     const DB_NAME = "SpotiPinkDB";
     const STORE_NAME = "songs";
@@ -314,6 +410,7 @@
               return {
                 file: fileObj,
                 name: cleanFileName(item.name),
+                artist: "Local Saved Track",
                 url: URL.createObjectURL(fileObj)
               };
             });
@@ -389,7 +486,7 @@
     }
     createSparkles();
 
-    // Add Audio Files & Save to DB
+    // Add Local Audio Files & Save to DB
     async function handleFilesAdded(files) {
       const validFiles = Array.from(files).filter(file => 
         file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|m4a|ogg|flac|aac)$/i)
@@ -401,6 +498,7 @@
         playlist.push({
           file: file,
           name: cleanFileName(file.name),
+          artist: "Local Saved Track",
           url: URL.createObjectURL(file)
         });
       });
@@ -466,7 +564,7 @@
       return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    // Play Specific Track Index
+    // Play Track
     function playTrack(index) {
       if (index < 0 || index >= playlist.length) return;
 
@@ -475,7 +573,7 @@
 
       audioEngine.src = track.url;
       currentTitle.textContent = track.name;
-      currentArtist.textContent = "Local Saved Track";
+      currentArtist.textContent = track.artist || "Local Saved Track";
       albumEmoji.textContent = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
 
       audioEngine.play();
@@ -625,7 +723,6 @@
       recognition.lang = 'en-US';
 
       recognition.onend = () => {
-        // Automatically restart if recognition turns off while driving
         if (voiceBtn.dataset.active === "true") {
           recognition.start();
         }
@@ -634,8 +731,6 @@
       recognition.onresult = (event) => {
         const lastResultIndex = event.results.length - 1;
         const spokenText = event.results[lastResultIndex][0].transcript.toLowerCase().trim();
-        
-        console.log("Voice Command Detected:", spokenText);
 
         if (spokenText.includes("next") || spokenText.includes("skip")) {
           playNextTrack();
@@ -668,11 +763,12 @@
         }
       });
     } else {
-      voiceBtn.style.display = 'none'; // Hide if browser lacks speech API
+      voiceBtn.style.display = 'none';
     }
 
-    // Load saved songs from database when app opens
-    window.addEventListener('DOMContentLoaded', () => {
+    // Initialize App
+    window.addEventListener('DOMContentLoaded', async () => {
+      await initMSAL();
       loadSavedSongsFromDB();
     });
   </script>
